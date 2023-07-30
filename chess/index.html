@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Chessboard Grid</title>
+    <style>
+        /* Styling for the chessboard grid */
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(8, 50px);
+            grid-template-rows: repeat(8, 50px);
+        }
+        .cell {
+            width: 50px;
+            height: 50px;
+            border: 1px solid #000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+        }
+        .white {
+            background-color: white;
+        }
+        .black {
+            background-color: black;
+        }
+        /* White shadow around the pieces */
+        .piece {
+            text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+        }
+        /* Indicator for the current player's turn */
+        .turn-indicator {
+            margin-top: 10px;
+            font-size: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="grid" id="chessboard">
+        <!-- Cells will be added here dynamically -->
+    </div>
+
+    <div class="turn-indicator" id="turnIndicator">
+        <!-- Turn indicator will be added here dynamically -->
+    </div>
+
+    <script>
+        let draggedPiece; // To store the dragged piece element
+        let currentPlayer = 'white'; // Store the current player's turn
+
+        // Function to create the chessboard
+        function createChessboard() {
+            const chessboard = document.getElementById('chessboard');
+            for (let row = 0; row < 8; row++) {
+                for (let col = 0; col < 8; col++) {
+                    const cell = document.createElement('div');
+                    cell.classList.add('cell');
+                    if ((row + col) % 2 === 0) {
+                        cell.classList.add('white');
+                    } else {
+                        cell.classList.add('black');
+                    }
+                    const piece = document.createElement('span'); // Create a span for the piece
+                    piece.classList.add('piece');
+                    piece.draggable = true; // Make the piece draggable
+                    piece.addEventListener('dragstart', onDragStart); // Add dragstart event listener
+                    cell.addEventListener('dragover', onDragOver); // Add dragover event listener
+                    cell.addEventListener('drop', onDrop); // Add drop event listener
+                    cell.appendChild(piece);
+                    chessboard.appendChild(cell);
+                }
+            }
+        }
+
+        // Function to handle the dragstart event
+        function onDragStart(event) {
+            draggedPiece = event.target; // Store the dragged piece element
+            event.dataTransfer.setData('text/plain', event.target.innerText);
+        }
+
+        // Function to handle the dragover event
+        function onDragOver(event) {
+            event.preventDefault(); // Prevent default to allow dropping
+        }
+
+        // Function to handle the drop event
+        function onDrop(event) {
+            event.preventDefault();
+            const data = event.dataTransfer.getData('text/plain');
+            const targetCell = event.target;
+
+            // Check if it's the correct player's turn
+            if (currentPlayer === 'white' && data.charCodeAt(0) > 9811) {
+                // White's turn and a white piece is being moved
+                movePiece(data, targetCell);
+            } else if (currentPlayer === 'black' && data.charCodeAt(0) < 9812) {
+                // Black's turn and a black piece is being moved
+                movePiece(data, targetCell);
+            } else {
+                // Invalid move for the current player
+                return;
+            }
+        }
+
+        // Function to move the piece to the new cell
+        function movePiece(data, targetCell) {
+            const targetPiece = targetCell.querySelector('.piece');
+            if (targetPiece) {
+                targetCell.removeChild(targetPiece);
+            }
+
+            const piece = document.createElement('span');
+            piece.classList.add('piece');
+            piece.draggable = true;
+            piece.addEventListener('dragstart', onDragStart);
+            piece.innerText = data;
+            targetCell.appendChild(piece);
+
+            // Clear the text from the original cell
+            draggedPiece.innerText = '';
+
+            // Re-enable the event listeners for the current player's pieces after the turn switch
+            enableEventListenersForCurrentPlayer();
+        }
+
+        // Function to enable event listeners for the current player's pieces
+        function enableEventListenersForCurrentPlayer() {
+            const chessboard = document.getElementById('chessboard');
+            const cells = chessboard.getElementsByClassName('piece');
+            for (let i = 0; i < cells.length; i++) {
+                const pieceCharCode = cells[i].innerText.charCodeAt(0);
+                if ((currentPlayer === 'white' && pieceCharCode > 9811) || (currentPlayer === 'black' && pieceCharCode < 9812)) {
+                    cells[i].addEventListener('dragstart', onDragStart);
+                    cells[i].draggable = true;
+                } else {
+                    cells[i].removeEventListener('dragstart', onDragStart);
+                    cells[i].draggable = false;
+                }
+            }
+        }
+
+        // Function to update the turn indicator
+        function updateTurnIndicator() {
+            const turnIndicator = document.getElementById('turnIndicator');
+            turnIndicator.textContent = `Current Turn: ${currentPlayer.toUpperCase()}`;
+        }
+
+        // Function to set up the white player's pieces
+        function setupWhitePieces() {
+            const whitePieces = ['♖', '♘', '♗', '♕', '♔', '♙'];
+            const chessboard = document.getElementById('chessboard');
+            const cells = chessboard.getElementsByClassName('piece'); // Use 'piece' class to select the spans
+
+            // Initialize pieces for the white player at the bottom of the board (rows 1 and 2)
+            for (let col = 0; col < 8; col++) {
+                cells[col + 8].innerText = whitePieces[5]; // Pawns (row 2)
+            }
+            cells[0].innerText = whitePieces[0]; // Rook (row 1)
+            cells[7].innerText = whitePieces[0]; // Rook (row 1)
+            cells[1].innerText = whitePieces[1]; // Knight (row 1)
+            cells[6].innerText = whitePieces[1]; // Knight (row 1)
+            cells[2].innerText = whitePieces[2]; // Bishop (row 1)
+            cells[5].innerText = whitePieces[2]; // Bishop (row 1)
+            cells[3].innerText = whitePieces[3]; // Queen (row 1)
+            cells[4].innerText = whitePieces[4]; // King (row 1)
+        }
+
+        // Function to set up the black player's pieces
+        function setupBlackPieces() {
+            const blackPieces = ['♜', '♞', '♝', '♛', '♚', '♟'];
+            const chessboard = document.getElementById('chessboard');
+            const cells = chessboard.getElementsByClassName('piece'); // Use 'piece' class to select the spans
+
+            // Initialize pieces for the black player at the top of the board (rows 7 and 8)
+            for (let col = 0; col < 8; col++) {
+                cells[col + 48].innerText = blackPieces[5]; // Pawns (row 7)
+            }
+            cells[56].innerText = blackPieces[0]; // Rook (row 8)
+            cells[63].innerText = blackPieces[0]; // Rook (row 8)
+            cells[57].innerText = blackPieces[1]; // Knight (row 8)
+            cells[62].innerText = blackPieces[1]; // Knight (row 8)
+            cells[58].innerText = blackPieces[2]; // Bishop (row 8)
+            cells[61].innerText = blackPieces[2]; // Bishop (row 8)
+            cells[59].innerText = blackPieces[3]; // Queen (row 8)
+            cells[60].innerText = blackPieces[4]; // King (row 8)
+        }
+
+        // Call the function to create the chessboard
+        createChessboard();
+
+        // Call the function to set up white player's pieces
+        setupWhitePieces();
+
+        // Call the function to set up black player's pieces
+        setupBlackPieces();
+
+        // Initialize the turn indicator
+        updateTurnIndicator();
+    </script>
+</body>
+</html>

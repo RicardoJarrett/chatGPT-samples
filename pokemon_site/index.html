@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Pokémon Information</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+    }
+
+    h1 {
+      margin-top: 20px;
+    }
+
+    #pokemonContainer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    .pokemonCard {
+      position: relative;
+      margin: 10px;
+      padding: 15px;
+      border: 1px solid #ddd;
+      max-width: 200px;
+      text-align: center;
+      background-color: #f9f9f9;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      border-radius: 8px;
+    }
+
+    .pokemonImage {
+      display: block;
+      margin: 0 auto 10px;
+      width: 120px;
+      height: 120px;
+    }
+
+    .pokemonName {
+      margin-top: 0;
+    }
+
+    .pokemonDetails {
+      font-size: 14px;
+      line-height: 1.5;
+      margin-top: 10px;
+    }
+
+    .evolutionMethodSymbol {
+      position: absolute;
+      top: 5px;
+      right: 5px;
+      font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Pokémon Information</h1>
+  <label for="pokemonInput">Enter Pokémon Name or ID:</label>
+  <input type="text" id="pokemonInput">
+  <button onclick="fetchPokemonData()">Get Pokémon Info</button>
+
+  <div id="pokemonContainer"></div>
+
+  <script>
+    function fetchPokemonData() {
+      const pokemonInput = document.getElementById('pokemonInput').value;
+      const apiEndpoint = `https://pokeapi.co/api/v2/pokemon/${pokemonInput.toLowerCase()}`;
+
+      fetch(apiEndpoint)
+        .then(response => response.json())
+        .then(data => fetchEvolutionChain(data))
+        .catch(error => displayError(error));
+    }
+
+    function fetchEvolutionChain(pokemonData) {
+      const speciesUrl = pokemonData.species.url;
+
+      fetch(speciesUrl)
+        .then(response => response.json())
+        .then(speciesData => fetchChainData(speciesData.evolution_chain.url, pokemonData))
+        .catch(error => displayError(error));
+    }
+
+    function fetchChainData(chainUrl, pokemonData) {
+      fetch(chainUrl)
+        .then(response => response.json())
+        .then(chainData => displayAllEvolutionChains(chainData.chain, pokemonData))
+        .catch(error => displayError(error));
+    }
+
+    function displayAllEvolutionChains(chain, pokemonData) {
+      const pokemonContainer = document.getElementById('pokemonContainer');
+      pokemonContainer.innerHTML = '';
+
+      const groupedEvolutionChains = {};
+
+      function displayEvolutionBranch(currentChain, prevolutionName = null) {
+        const imageUrl = `https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${getPokemonIdFromURL(currentChain.species.url)}.png`;
+        const isEvolvedWithStone = currentChain.evolution_details.some(detail => detail.trigger.name === 'use-item');
+        const isEvolvedByTrade = currentChain.evolution_details.some(detail => detail.trigger.name === 'trade');
+        const isLevelUp = currentChain.evolution_details.some(detail => detail.trigger.name === 'level-up');
+        const isOtherEvolutionMethod = !(isEvolvedWithStone || isEvolvedByTrade || isLevelUp);
+
+        const evolutionMethodSymbol = getEvolutionMethodSymbol(isEvolvedWithStone, isEvolvedByTrade, isLevelUp, isOtherEvolutionMethod, pokemonData.held_items);
+
+        const evolutionKey = `${currentChain.species.name}-${evolutionMethodSymbol}`;
+
+        if (!groupedEvolutionChains[evolutionKey]) {
+          groupedEvolutionChains[evolutionKey] = {
+            name: currentChain.species.name,
+            methodSymbol: evolutionMethodSymbol,
+            imageUrl: imageUrl,
+            evolutions: []
+          };
+        }
+
+        if (prevolutionName) {
+          groupedEvolutionChains[evolutionKey].prevolutionName = prevolutionName;
+        }
+
+        groupedEvolutionChains[evolutionKey].evolutions.push({
+          species: currentChain.species.name.toUpperCase(),
+          id: getPokemonIdFromURL(currentChain.species.url)
+        });
+
+        if (currentChain.evolves_to.length > 0) {
+          const nextEvolutions = currentChain.evolves_to;
+          for (const nextEvolution of nextEvolutions) {
+            displayEvolutionBranch(nextEvolution, currentChain.species.name);
+          }
+        }
+      }
+
+      displayEvolutionBranch(chain);
+
+      const chainHtml = Object.values(groupedEvolutionChains).map(evolutionChain => {
+        return `
+          <div class="pokemonCard">
+            ${evolutionChain.methodSymbol ? `<span class="evolutionMethodSymbol">${evolutionChain.methodSymbol}</span>` : ''}
+            <img class="pokemonImage" src="${evolutionChain.imageUrl}" alt="${evolutionChain.name}">
+            <h2 class="pokemonName">${evolutionChain.name.toUpperCase()} (#${evolutionChain.evolutions[0].id})</h2>
+            ${evolutionChain.prevolutionName ? `<p>Evolves from: ${evolutionChain.prevolutionName.toUpperCase()}</p>` : ''}
+            <div class="pokemonDetails">
+              <p><strong>Types:</strong> ${pokemonData.types.map(type => type.type.name).join(', ')}</p>
+              <p><strong>Abilities:</strong> ${pokemonData.abilities.map(ability => ability.ability.name).join(', ')}</p>
+              <p><strong>Height:</strong> ${pokemonData.height / 10} m</p>
+              <p><strong>Weight:</strong> ${pokemonData.weight / 10} kg</p>
+              <p><strong>Base Experience:</strong> ${pokemonData.base_experience}</p>
+            </div>
+          </div>
+        `;
+      });
+
+      pokemonContainer.innerHTML = chainHtml.join('');
+    }
+
+    function getPokemonIdFromURL(url) {
+      const urlParts = url.split('/');
+      return urlParts[urlParts.length - 2];
+    }
+
+    function getEvolutionMethodSymbol(isEvolvedWithStone, isEvolvedByTrade, isLevelUp, isOtherEvolutionMethod, heldItems) {
+      if (isEvolvedWithStone) {
+        const stoneSymbols = {
+          'fire-stone': '🔥',
+          'water-stone': '💧',
+          'thunder-stone': '⚡️',
+          'leaf-stone': '🍃',
+          'moon-stone': '🌙',
+          'sun-stone': '☀️',
+          'shiny-stone': '✨',
+          'dusk-stone': '🌆',
+          'dawn-stone': '🌄',
+          'ice-stone': '❄️',
+          'oval-stone': '⭕',
+          'link-stone': '🔗',
+          'prism-scale': '🔮',
+          'sweet-apple': '🍎',
+          'tart-apple': '🍏',
+          'chipped-pot': '🍶',
+          'cracked-pot': '🥢',
+          'whipped-dream': '🍦',
+          'sachet': '🎀',
+          'ribbon-sweet': '🍬'
+        };
+        const heldItemNames = heldItems.map(item => item.item.name);
+        for (const itemName of heldItemNames) {
+          if (stoneSymbols.hasOwnProperty(itemName)) {
+            return stoneSymbols[itemName];
+          }
+        }
+        return '⚡️'; // Default to thunder-stone if the stone is not recognized
+      }
+      if (isEvolvedByTrade) return '🤝';
+      if (isLevelUp) return '⬆️';
+      if (isOtherEvolutionMethod) return '🔄';
+      return '';
+    }
+  </script>
+</body>
+</html>
